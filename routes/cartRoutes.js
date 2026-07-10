@@ -1,23 +1,22 @@
 const express = require("express");
+
 const {
   getCart,
-  addItemToCart,
-  updateCartItem,
-  removeCartItem,
-  clearCart
+  addToCart,
+  updateCart,
+  deleteCart,
 } = require("../controllers/cartController");
 
 const router = express.Router();
 
-router.route("/")
+router
+  .route("/")
   .get(getCart)
-  .delete(clearCart);
+  .post(addToCart);
 
-router.route("/items")
-  .post(addItemToCart);
-
-router.route("/items/:productId")
-  .patch(updateCartItem)
-  .delete(removeCartItem);
+router
+  .route("/:id")
+  .patch(updateCart)
+  .delete(deleteCart);
 
 module.exports = router;

@@ -1,21 +1,24 @@
 const express = require("express");
+
 const {
-  checkoutOrder,
   getAllOrders,
   getOrderById,
-  updateOrderStatus
+  createOrder,
+  updateOrder,
+  deleteOrder,
 } = require("../controllers/orderController");
 
 const router = express.Router();
 
-router.route("/")
+router
+  .route("/")
   .get(getAllOrders)
-  .post(checkoutOrder);
+  .post(createOrder);
 
-router.route("/:id")
-  .get(getOrderById);
-
-router.route("/:id/status")
-  .patch(updateOrderStatus);
+router
+  .route("/:id")
+  .get(getOrderById)
+  .patch(updateOrder)
+  .delete(deleteOrder);
 
 module.exports = router;
