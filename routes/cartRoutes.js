@@ -5,6 +5,7 @@ const {
   addToCart,
   updateCart,
   deleteCart,
+  clearCart,
 } = require("../controllers/cartController");
 
 const router = express.Router();
@@ -12,10 +13,11 @@ const router = express.Router();
 router
   .route("/")
   .get(getCart)
-  .post(addToCart);
+  .post(addToCart)
+  .delete(clearCart);
 
 router
-  .route("/:id")
+  .route("/items/:productId")
   .patch(updateCart)
   .delete(deleteCart);
 
