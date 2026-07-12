@@ -13,8 +13,11 @@ const router = express.Router();
 router
   .route("/")
   .get(getCart)
-  .post(addToCart)
   .delete(clearCart);
+
+router
+  .route("/items")
+  .post(addToCart);
 
 router
   .route("/items/:productId")

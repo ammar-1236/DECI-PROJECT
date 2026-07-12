@@ -4,8 +4,7 @@ const {
   getAllOrders,
   getOrderById,
   createOrder,
-  updateOrder,
-  deleteOrder,
+  updateOrderStatus,
 } = require("../controllers/orderController");
 
 const router = express.Router();
@@ -17,8 +16,10 @@ router
 
 router
   .route("/:id")
-  .get(getOrderById)
-  .patch(updateOrder)
-  .delete(deleteOrder);
+  .get(getOrderById);
+
+router
+  .route("/:id/status")
+  .patch(updateOrderStatus);
 
 module.exports = router;
