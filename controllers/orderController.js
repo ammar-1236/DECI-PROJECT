@@ -6,7 +6,7 @@ const AppError = require("../utils/AppError");
 
 // GET all orders
 exports.getAllOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find().populate("products.product");
+  const orders = await Order.find().populate("items.product");
 
   res.status(200).json({
     status: "success",
@@ -17,7 +17,7 @@ exports.getAllOrders = asyncHandler(async (req, res) => {
 
 // GET order by ID
 exports.getOrderById = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id).populate("products.product");
+  const order = await Order.findById(req.params.id).populate("items.product");
 
   if (!order) {
     return next(new AppError("Order not found", 404));
@@ -30,33 +30,65 @@ exports.getOrderById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// CREATE order from cart
+// CREATE order (Checkout)
 exports.createOrder = asyncHandler(async (req, res, next) => {
-  const cartItems = await Cart.find().populate("product");
+  const cart = await Cart.findOne().populate("items.product");
 
-  if (cartItems.length === 0) {
+  if (!cart || cart.items.length === 0) {
     return next(new AppError("Your shopping cart is currently empty", 400));
   }
 
-  const products = [];
   let totalPrice = 0;
+  const items = [];
 
-  for (const item of cartItems) {
-    products.push({
-      product: item.product._id,
-      quantity: item.quantity,
-      price: item.product.price,
+  for (const cartItem of cart.items) {
+    const product = await Product.findById(cartItem.product._id);
+
+    if (!product) {
+      return next(
+        new AppError(`Product "${cartItem.name}" no longer exists`, 404)
+      );
+    }
+
+    if (product.stock < cartItem.quantity) {
+      return next(
+        new AppError(
+          `Not enough stock for ${product.name}. Available: ${product.stock}`,
+          400
+        )
+      );
+    }
+
+    totalPrice += product.price * cartItem.quantity;
+
+    items.push({
+      product: product._id,
+      name: product.name,
+      price: product.price,
+      quantity: cartItem.quantity,
     });
-
-    totalPrice += item.product.price * item.quantity;
   }
 
   const order = await Order.create({
-    products,
+    items,
     totalPrice,
+    shippingAddress: req.body.shippingAddress,
   });
 
-  await Cart.deleteMany();
+  // Reduce stock
+  for (const item of items) {
+    await Product.findByIdAndUpdate(item.product, {
+      $inc: {
+        stock: -item.quantity,
+      },
+    });
+  }
+
+  // Empty cart
+  cart.items = [];
+  cart.totalPrice = 0;
+
+  await cart.save();
 
   res.status(201).json({
     status: "success",
@@ -65,16 +97,30 @@ exports.createOrder = asyncHandler(async (req, res, next) => {
   });
 });
 
-// UPDATE order
-exports.updateOrder = asyncHandler(async (req, res, next) => {
+// UPDATE order status
+exports.updateOrderStatus = asyncHandler(async (req, res, next) => {
+  const { status } = req.body;
+
+  const allowedStatuses = [
+    "pending",
+    "confirmed",
+    "shipped",
+    "delivered",
+    "cancelled",
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    return next(new AppError("Invalid order status", 400));
+  }
+
   const order = await Order.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    { status },
     {
       new: true,
       runValidators: true,
     }
-  ).populate("products.product");
+  );
 
   if (!order) {
     return next(new AppError("Order not found", 404));
@@ -82,22 +128,7 @@ exports.updateOrder = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    message: "Order updated successfully",
+    message: "Order status updated successfully",
     data: order,
-  });
-});
-
-// DELETE order
-exports.deleteOrder = asyncHandler(async (req, res, next) => {
-  const order = await Order.findByIdAndDelete(req.params.id);
-
-  if (!order) {
-    return next(new AppError("Order not found", 404));
-  }
-
-  res.status(200).json({
-    status: "success",
-    message: "Order deleted successfully",
-    data: null,
   });
 });

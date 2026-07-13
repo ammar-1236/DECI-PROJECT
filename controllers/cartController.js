@@ -92,8 +92,13 @@ exports.updateCart = asyncHandler(async (req, res, next) => {
     return next(new AppError("Cart item not found", 404));
   }
 
+if (quantity <= 0) {
+  cart.items = cart.items.filter(
+    (i) => i.product.toString() !== req.params.productId
+  );
+} else {
   item.quantity = quantity;
-
+}
   cart.totalPrice = cart.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0

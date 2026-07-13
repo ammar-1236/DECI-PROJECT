@@ -3,16 +3,12 @@ const Category = require("../models/category.model");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
-// GET all products with filtering
+// GET all products
 exports.getAllProducts = asyncHandler(async (req, res) => {
   const filter = {};
 
   if (req.query.category) {
     filter.category = req.query.category;
-  }
-
-  if (req.query.inStock) {
-    filter.inStock = req.query.inStock === "true";
   }
 
   if (req.query.minPrice || req.query.maxPrice) {
@@ -27,16 +23,33 @@ exports.getAllProducts = asyncHandler(async (req, res) => {
     }
   }
 
+  if (req.query.inStock !== undefined) {
+    filter.stock =
+      req.query.inStock === "true"
+        ? { $gt: 0 }
+        : { $lte: 0 };
+  }
+
   if (req.query.search) {
-    filter.name = {
-      $regex: req.query.search,
-      $options: "i",
-    };
+    filter.$or = [
+      {
+        name: {
+          $regex: req.query.search,
+          $options: "i",
+        },
+      },
+      {
+        description: {
+          $regex: req.query.search,
+          $options: "i",
+        },
+      },
+    ];
   }
 
   const products = await Product.find(filter).populate(
     "category",
-    "name description"
+    "name"
   );
 
   res.status(200).json({
@@ -98,7 +111,7 @@ exports.updateProduct = asyncHandler(async (req, res, next) => {
       new: true,
       runValidators: true,
     }
-  ).populate("category", "name description");
+  );
 
   if (!product) {
     return next(new AppError("Product not found", 404));

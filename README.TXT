@@ -1,221 +1,166 @@
-# E-Commerce REST API
+# DECI E-Commerce REST API
 
-## GitHub Repository
+A RESTful backend API for a simple e-commerce platform. It manages product categories and products, a shopping cart with server-side price and stock validation, and customer orders.
 
-Repository Link:
-https://github.com/ammar-1236/DECI-PROJECT.git
----
-
-## Project Description
-
-This project is a RESTful E-Commerce API developed using Node.js, Express.js, and MongoDB. It provides a backend system for managing categories, products, shopping carts, and customer orders. The application follows REST architecture and implements CRUD operations, centralized error handling, data validation, and secure database communication.
-
----
+**Tech Stack:** Node.js, Express.js, MongoDB, Mongoose
 
 ## Features
 
-- Categories Management
-  - Create Category
-  - Get All Categories
-  - Get Category by ID
-  - Update Category
-  - Delete Category
+- **Categories API** — full CRUD for product categories
+- **Products API** — full CRUD, with filtering (category, price range, stock, search) and category-existence validation
+- **Cart API** — add, update, and remove items with automatic price snapshotting and stock checks
+- **Orders API** — checkout from the cart, plus order history and lookup
+- Centralized error handling for validation errors, invalid IDs, duplicate keys, and unexpected server errors
+- Request sanitization against NoSQL injection (`express-mongo-sanitize`)
 
-- Products Management
-  - Create Product
-  - Get All Products
-  - Get Product by ID
-  - Update Product
-  - Delete Product
+## Prerequisites
 
-- Shopping Cart
-  - Add Product to Cart
-  - View Cart
-  - Update Cart Item Quantity
-  - Remove Item from Cart
+- **Node.js** v18 or higher
+- **MongoDB** — running locally, or a connection string from MongoDB Atlas
+- **npm** (bundled with Node.js)
 
-- Orders
-  - Create Order from Cart
-  - View All Orders
-  - View Order by ID
-  - Update Order Status
-  - Delete Order
+## Installation
 
----
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/ammar-1236/DECI-PROJECT.git
+   cd DECI-PROJECT
+   ```
 
-## Technologies Used
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-- Node.js
-- Express.js
-- MongoDB
-- Mongoose
-- dotenv
-- express-mongo-sanitize
-- Nodemon
+3. **Set up environment variables**
 
----
+   Copy the example file and fill in your own values:
+   ```bash
+   cp .env.example .env
+   ```
+   See the [Environment Variables](#environment-variables) table below.
+
+4. **Seed the database**
+
+   Clears any existing Categories/Products/Orders and inserts sample data.
+   ```bash
+   npm run seed
+   ```
+
+5. **Run the server**
+   ```bash
+   npm run dev
+   ```
+   Or, without auto-restart:
+   ```bash
+   npm start
+   ```
+
+   The API will be available at `http://localhost:5000/api`.
+
+## Environment Variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `PORT` | Port the Express server listens on | `5000` |
+| `NODE_ENV` | Application environment | `development` |
+| `MONGO_URI` | MongoDB connection string | `mongodb://127.0.0.1:27017/deci-ecommerce` |
+
+## API Endpoints
+
+All routes are prefixed with `/api`. Every response follows the shape:
+```json
+{ "status": "success" | "error", "message": "...", "data": ... }
+```
+
+### Categories
+
+| Method | URL | Description |
+|---|---|---|
+| `GET` | `/api/categories` | Get all categories |
+| `GET` | `/api/categories/:id` | Get a single category by ID |
+| `POST` | `/api/categories` | Create a new category |
+| `PATCH` | `/api/categories/:id` | Update a category |
+| `DELETE` | `/api/categories/:id` | Delete a category |
+
+### Products
+
+| Method | URL | Description |
+|---|---|---|
+| `GET` | `/api/products` | Get all products. Supports `?category=`, `?minPrice=`, `?maxPrice=`, `?inStock=true`, `?search=` — all optional and combinable |
+| `GET` | `/api/products/:id` | Get a single product, with its category populated |
+| `POST` | `/api/products` | Create a new product (validates that the category exists) |
+| `PATCH` | `/api/products/:id` | Update a product |
+| `DELETE` | `/api/products/:id` | Delete a product |
+
+### Cart
+
+| Method | URL | Description |
+|---|---|---|
+| `GET` | `/api/cart` | Get the current cart, with product details populated |
+| `POST` | `/api/cart` | Add an item to the cart (body: `{ product, quantity }`). Increases quantity if the item is already in the cart; price is always read from the database |
+| `PATCH` | `/api/cart/items/:productId` | Update the quantity of an item |
+| `DELETE` | `/api/cart/items/:productId` | Remove a single item from the cart |
+| `DELETE` | `/api/cart` | Clear the entire cart |
+
+### Orders
+
+| Method | URL | Description |
+|---|---|---|
+| `POST` | `/api/orders` | Create an order from the current cart (checkout) |
+| `GET` | `/api/orders` | Get all orders |
+| `GET` | `/api/orders/:id` | Get a single order by ID |
+| `PATCH` | `/api/orders/:id` | Update an order |
+| `DELETE` | `/api/orders/:id` | Delete an order |
 
 ## Project Structure
 
 ```
-DECI/
+DECI-PROJECT/
+├── app.js                  # Express app: middleware, routes, error handler
+├── server.js               # Entry point: connects to the DB and starts the server
+├── seed.js                 # Seeds the database with sample categories & products
+├── .env.example             # Template listing required environment variables
+├── .gitignore                # Excludes node_modules/ and .env from git
 │
-├── config/
-│   └── connectDB.js
+├── db/
+│   └── connectDB.js        # MongoDB connection logic
 │
-├── controllers/
-│   ├── categoryController.js
-│   ├── productController.js
-│   ├── cartController.js
-│   └── orderController.js
-│
-├── middleware/
-│   └── errorHandler.js
-│
-├── models/
+├── models/                 # Mongoose schemas
 │   ├── category.model.js
 │   ├── product.model.js
 │   ├── cart.model.js
 │   └── order.model.js
 │
-├── routes/
+├── controllers/            # Request handlers / business logic
+│   ├── categoryController.js
+│   ├── productController.js
+│   ├── cartController.js
+│   └── orderController.js
+│
+├── routes/                 # Express routers mapping URLs to controllers
 │   ├── categoryRoutes.js
 │   ├── productRoutes.js
 │   ├── cartRoutes.js
 │   └── orderRoutes.js
 │
-├── utils/
-│   ├── AppError.js
-│   └── asyncHandler.js
+├── middleware/
+│   └── errorHandler.js     # Central error handler (validation, cast, duplicate-key, AppError, generic)
 │
-├── app.js
-├── server.js
-├── seed.js
-├── .env.example
-├── package.json
-└── README.md
+├── utils/
+│   ├── AppError.js         # Custom operational error class
+│   └── asyncHandler.js     # Wraps async route handlers to forward errors to next()
+│
+└── postman/
+    └── DECI-E-Commerce-API.postman_collection.json   # Postman collection for manual API testing
 ```
 
----
+**Folder purposes:**
 
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/<YOUR_USERNAME>/<YOUR_REPOSITORY_NAME>.git
-```
-
-### 2. Navigate to the project
-
-```bash
-cd <YOUR_REPOSITORY_NAME>
-```
-
-### 3. Install dependencies
-
-```bash
-npm install
-```
-
-### 4. Configure environment variables
-
-Create a `.env` file and add:
-
-```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
-```
-
-### 5. Seed the database
-
-```bash
-node seed.js
-```
-
-### 6. Start the development server
-
-```bash
-npm run dev
-```
-
----
-
-## API Endpoints
-
-### Categories
-
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/categories |
-| GET | /api/categories/:id |
-| POST | /api/categories |
-| PATCH | /api/categories/:id |
-| DELETE | /api/categories/:id |
-
-### Products
-
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/products |
-| GET | /api/products/:id |
-| POST | /api/products |
-| PATCH | /api/products/:id |
-| DELETE | /api/products/:id |
-
-### Cart
-
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/cart |
-| POST | /api/cart |
-| PATCH | /api/cart/:id |
-| DELETE | /api/cart/:id |
-
-### Orders
-
-| Method | Endpoint |
-|---------|----------|
-| GET | /api/orders |
-| GET | /api/orders/:id |
-| POST | /api/orders |
-| PATCH | /api/orders/:id |
-| DELETE | /api/orders/:id |
-
----
-
-## Error Handling
-
-The API uses centralized error handling to provide consistent JSON responses.
-
-Example:
-
-```json
-{
-  "status": "error",
-  "message": "Resource not found"
-}
-```
-
----
-
-## Security
-
-- MongoDB query sanitization using `express-mongo-sanitize`
-- Input validation with Mongoose
-- Centralized error handling
-- Async error handling using a custom `asyncHandler`
-
----
-
-## Testing
-
-All API endpoints were tested using Postman.
-
----
-
-## Author
-
-**Ammar Mahmoud**
-
-DECI Backend Development Project
+- **`db/`** — the MongoDB connection setup
+- **`models/`** — Mongoose schema definitions for each collection (Category, Product, Cart, Order)
+- **`controllers/`** — the logic for each endpoint: querying the database, validating input, and building responses
+- **`routes/`** — maps HTTP methods and URLs to the correct controller functions
+- **`middleware/`** — cross-cutting request logic, currently the centralized error handler
+- **`utils/`** — small reusable helpers: `AppError` for structured errors, `asyncHandler` to avoid repetitive try/catch blocks
+- **`postman/`** — exported Postman collection for manually testing every endpoint

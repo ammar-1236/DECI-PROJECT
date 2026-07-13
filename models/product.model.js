@@ -11,6 +11,7 @@ const productSchema = new mongoose.Schema(
     description: {
       type: String,
       required: [true, "Product description is required"],
+      trim: true,
     },
 
     price: {
@@ -21,6 +22,7 @@ const productSchema = new mongoose.Schema(
 
     stock: {
       type: Number,
+      required: [true, "Product stock is required"],
       default: 0,
       min: [0, "Stock cannot be negative"],
     },
@@ -31,20 +33,20 @@ const productSchema = new mongoose.Schema(
       required: [true, "Category is required"],
     },
 
-    images: [
-      {
-        type: String,
-      },
-    ],
-
-    inStock: {
-      type: Boolean,
-      default: true,
+    images: {
+      type: [String],
+      default: [],
     },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+productSchema.virtual("inStock").get(function () {
+  return this.stock > 0;
+});
 
 module.exports = mongoose.model("Product", productSchema);
