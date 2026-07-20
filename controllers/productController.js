@@ -1,10 +1,56 @@
 const Product = require("../models/product.model");
+const Category = require("../models/category.model");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
 // GET all products
 exports.getAllProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find().populate("category");
+  const filter = {};
+
+  if (req.query.category) {
+    filter.category = req.query.category;
+  }
+
+  if (req.query.minPrice || req.query.maxPrice) {
+    filter.price = {};
+
+    if (req.query.minPrice) {
+      filter.price.$gte = Number(req.query.minPrice);
+    }
+
+    if (req.query.maxPrice) {
+      filter.price.$lte = Number(req.query.maxPrice);
+    }
+  }
+
+  if (req.query.inStock !== undefined) {
+    filter.stock =
+      req.query.inStock === "true"
+        ? { $gt: 0 }
+        : { $lte: 0 };
+  }
+
+  if (req.query.search) {
+    filter.$or = [
+      {
+        name: {
+          $regex: req.query.search,
+          $options: "i",
+        },
+      },
+      {
+        description: {
+          $regex: req.query.search,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  const products = await Product.find(filter).populate(
+    "category",
+    "name"
+  );
 
   res.status(200).json({
     status: "success",
@@ -13,11 +59,12 @@ exports.getAllProducts = asyncHandler(async (req, res) => {
   });
 });
 
-
 // GET product by ID
 exports.getProductById = asyncHandler(async (req, res, next) => {
-  const product = await Product.findById(req.params.id)
-    .populate("category");
+  const product = await Product.findById(req.params.id).populate(
+    "category",
+    "name description"
+  );
 
   if (!product) {
     return next(new AppError("Product not found", 404));
@@ -30,9 +77,14 @@ exports.getProductById = asyncHandler(async (req, res, next) => {
   });
 });
 
-
 // CREATE product
-exports.createProduct = asyncHandler(async (req, res) => {
+exports.createProduct = asyncHandler(async (req, res, next) => {
+  const category = await Category.findById(req.body.category);
+
+  if (!category) {
+    return next(new AppError("Category not found", 404));
+  }
+
   const product = await Product.create(req.body);
 
   res.status(201).json({
@@ -42,9 +94,16 @@ exports.createProduct = asyncHandler(async (req, res) => {
   });
 });
 
-
 // UPDATE product
 exports.updateProduct = asyncHandler(async (req, res, next) => {
+  if (req.body.category) {
+    const category = await Category.findById(req.body.category);
+
+    if (!category) {
+      return next(new AppError("Category not found", 404));
+    }
+  }
+
   const product = await Product.findByIdAndUpdate(
     req.params.id,
     req.body,
@@ -64,7 +123,6 @@ exports.updateProduct = asyncHandler(async (req, res, next) => {
     data: product,
   });
 });
-
 
 // DELETE product
 exports.deleteProduct = asyncHandler(async (req, res, next) => {

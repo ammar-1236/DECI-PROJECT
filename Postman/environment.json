@@ -1,0 +1,10 @@
+{
+	"name": "DECI E-Commerce - Dev",
+	"values": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000/api",
+			"enabled": true
+		}
+	]
+}

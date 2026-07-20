@@ -8,19 +8,17 @@ const {
   deleteProduct,
 } = require("../controllers/productController");
 
-
 const router = express.Router();
 
-
-router.route("/")
+router
+  .route("/")
   .get(getAllProducts)
   .post(createProduct);
 
-
-router.route("/:id")
+router
+  .route("/:id")
   .get(getProductById)
   .patch(updateProduct)
   .delete(deleteProduct);
-
 
 module.exports = router;

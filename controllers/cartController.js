@@ -3,18 +3,15 @@ const Product = require("../models/product.model");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
-// Helper function to recalculate the totals securely
-const recalculateCart = (cart) => {
-  cart.totalPrice = cart.items.reduce((total, item) => total + item.quantity * item.price, 0);
-};
+// GET cart
+exports.getCart = asyncHandler(async (req, res) => {
+  let cart = await Cart.findOne().populate("items.product");
 
-// 1. VIEW Cart
-exports.getCart = asyncHandler(async (req, res, next) => {
-  let cart = await Cart.findOne().populate("items.product", "name price stock");
-
-  // If no cart exists yet, return an empty structure (Sub-task 4 rule: do not return 404)
   if (!cart) {
-    cart = await Cart.create({ items: [], totalPrice: 0 });
+    cart = await Cart.create({
+      items: [],
+      totalPrice: 0,
+    });
   }
 
   res.status(200).json({
@@ -24,81 +21,92 @@ exports.getCart = asyncHandler(async (req, res, next) => {
   });
 });
 
-// 2. ADD Item to Cart
-exports.addItemToCart = asyncHandler(async (req, res, next) => {
-  const { productId, quantity } = req.body;
-  const qtyToAdd = Number(quantity) || 1;
+// ADD product to cart
+exports.addToCart = asyncHandler(async (req, res, next) => {
+  const { product, quantity } = req.body;
 
-  // Verify product exists and check inventory levels
-  const product = await Product.findById(productId);
-  if (!product) {
+  const existingProduct = await Product.findById(product);
+
+  if (!existingProduct) {
     return next(new AppError("Product not found", 404));
   }
-  if (product.stock < qtyToAdd) {
-    return next(new AppError(`Insufficient stock. Only ${product.stock} items left.`, 400));
+
+  if (existingProduct.stock < quantity) {
+    return next(new AppError("Not enough stock available", 400));
   }
 
   let cart = await Cart.findOne();
+
   if (!cart) {
-    cart = await Cart.create({ items: [], totalPrice: 0 });
-  }
-
-  // Check if item already exists in cart
-  const itemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
-
-  if (itemIndex > -1) {
-    // Increment quantity securely
-    const newQty = cart.items[itemIndex].quantity + qtyToAdd;
-    if (product.stock < newQty) {
-      return next(new AppError(`Cannot add more. Exceeds available stock of ${product.stock}`, 400));
-    }
-    cart.items[itemIndex].quantity = newQty;
-    cart.items[itemIndex].price = product.price; // Update to freshest DB price
-  } else {
-    // Add new product item (Price originates safely from database)
-    cart.items.push({
-      product: productId,
-      quantity: qtyToAdd,
-      price: product.price,
+    cart = await Cart.create({
+      items: [],
+      totalPrice: 0,
     });
   }
 
-  recalculateCart(cart);
+  const itemIndex = cart.items.findIndex(
+    item => item.product.toString() === product
+  );
+
+  if (itemIndex > -1) {
+    cart.items[itemIndex].quantity += quantity;
+  } else {
+    cart.items.push({
+      product,
+      quantity,
+      price: existingProduct.price,
+    });
+  }
+
+  cart.totalPrice = cart.items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
   await cart.save();
 
-  res.status(200).json({
+  await cart.populate("items.product");
+
+  res.status(201).json({
     status: "success",
-    message: "Item added to cart successfully",
+    message: "Product added to cart successfully",
     data: cart,
   });
 });
 
-// 3. UPDATE Item Quantity
-exports.updateCartItem = asyncHandler(async (req, res, next) => {
-  const { productId } = req.params;
+// UPDATE quantity
+exports.updateCart = asyncHandler(async (req, res, next) => {
   const { quantity } = req.body;
-  const newQty = Number(quantity);
 
   const cart = await Cart.findOne();
-  if (!cart) return next(new AppError("Cart not found", 404));
 
-  const itemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
-  if (itemIndex === -1) return next(new AppError("Item not found in cart", 404));
-
-  if (newQty <= 0) {
-    // Auto-drops items if quantity reaches 0
-    cart.items.splice(itemIndex, 1);
-  } else {
-    const product = await Product.findById(productId);
-    if (!product) return next(new AppError("Product not found", 404));
-    if (product.stock < newQty) {
-      return next(new AppError(`Insufficient stock. Only ${product.stock} available.`, 400));
-    }
-    cart.items[itemIndex].quantity = newQty;
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
   }
 
-  recalculateCart(cart);
+  const item = cart.items.find(
+    item => item.product.toString() === req.params.productId
+  );
+
+  if (!item) {
+    return next(new AppError("Cart item not found", 404));
+  }
+
+if (quantity <= 0) {
+  cart.items = cart.items.filter(
+    (i) => i.product.toString() !== req.params.productId
+  );
+} else {
+  item.quantity = quantity;
+}
+  cart.totalPrice = cart.items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
   await cart.save();
+
+  await cart.populate("items.product");
 
   res.status(200).json({
     status: "success",
@@ -107,33 +115,44 @@ exports.updateCartItem = asyncHandler(async (req, res, next) => {
   });
 });
 
-// 4. REMOVE single item from cart
-exports.removeCartItem = asyncHandler(async (req, res, next) => {
-  const { productId } = req.params;
-
+// REMOVE one item
+exports.deleteCart = asyncHandler(async (req, res, next) => {
   const cart = await Cart.findOne();
-  if (!cart) return next(new AppError("Cart not found", 404));
 
-  cart.items = cart.items.filter((item) => item.product.toString() !== productId);
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
+  }
 
-  recalculateCart(cart);
+  cart.items = cart.items.filter(
+    item => item.product.toString() !== req.params.productId
+  );
+
+  cart.totalPrice = cart.items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
   await cart.save();
 
   res.status(200).json({
     status: "success",
-    message: "Item removed from cart successfully",
+    message: "Cart item deleted successfully",
     data: cart,
   });
 });
 
-// 5. CLEAR Cart Entirely
+// CLEAR cart
 exports.clearCart = asyncHandler(async (req, res, next) => {
   const cart = await Cart.findOne();
-  if (cart) {
-    cart.items = [];
-    cart.totalPrice = 0;
-    await cart.save();
+
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
   }
+
+  cart.items = [];
+  cart.totalPrice = 0;
+
+  await cart.save();
 
   res.status(200).json({
     status: "success",
